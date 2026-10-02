@@ -6,22 +6,29 @@ const STATUS_CLASS = {
   unresolved: 'status-unresolved',
 }
 
-export default function PostmortemCard({ task, postmortem, finalStats, onReset }) {
+export default function PostmortemCard({ task, category, postmortem, finalStats, onReset }) {
   return (
     <div className="postmortem-card">
       <div className="postmortem-card-header">
         <span className="postmortem-bot-avatar">🪦</span>
         <div>
           <div className="postmortem-bot-name">
-            Incident Bot <span className="bot-tag">BOT</span>
+            Incident Bot <span className="bot-tag">AUTOMATED</span>
           </div>
           <div className="postmortem-bot-sub">posted a postmortem</div>
         </div>
       </div>
 
       <div className="postmortem-body">
-        <h3>Postmortem: "{task}"</h3>
-        <span className={`status-badge ${STATUS_CLASS[postmortem.status]}`}>{postmortem.statusLabel}</span>
+        <div className="postmortem-kicker">
+          <span className="postmortem-kicker-label">Incident report</span>
+          {category && <span className="pinned-category">{category}</span>}
+        </div>
+
+        <div className="postmortem-title-row">
+          <h3>Postmortem: "{task}"</h3>
+          <span className={`status-badge ${STATUS_CLASS[postmortem.status]}`}>{postmortem.statusLabel}</span>
+        </div>
 
         <StatsRail stats={finalStats} variant="summary" />
 

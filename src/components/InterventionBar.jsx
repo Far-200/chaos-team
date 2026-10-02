@@ -18,7 +18,10 @@ export default function InterventionBar({ onSubmit, onSkip }) {
 
   return (
     <div className="intervention-bar">
-      <div className="intervention-label">💬 The team has paused - say something</div>
+      <div className="intervention-label">
+        <span className="intervention-dot" />
+        The team has paused - say something
+      </div>
       <div className="composer-presets">
         {USER_REPLY_PRESETS.map((p) => (
           <button type="button" key={p.id} className="preset-chip" onClick={() => handlePreset(p)}>

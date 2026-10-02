@@ -57,7 +57,15 @@ export default function App() {
 
   function finishIncident() {
     const current = incidentRef.current
-    setPostmortem(buildPostmortem({ task: current.task, finalStats: statsRef.current, participating: current.participating }))
+    setPostmortem(
+      buildPostmortem({
+        task: current.task,
+        finalStats: statsRef.current,
+        participating: current.participating,
+        category: current.category,
+        arithmetic: current.arithmetic,
+      })
+    )
     setTypingAgentId(null)
     setPhase('done')
   }
@@ -96,17 +104,17 @@ export default function App() {
     }, isAgent ? ev.typingMs : 0)
   }
 
-  function buildReactions(preset) {
-    if (preset && preset.reaction) return [preset.reaction]
-
+  // Custom (non-preset) messages get 1, occasionally 2, generic persona
+  // acknowledgements - no semantic processing, just flavor.
+  function buildCustomReactionSteps() {
     const first = pickRandom(AGENTS)
-    const reactions = [{ agentId: first.id, text: pickRandom(AGENT_REACTIONS[first.id]) }]
+    const steps = [{ agentId: first.id, text: pickRandom(AGENT_REACTIONS[first.id]) }]
     if (Math.random() < 0.3) {
       let second = pickRandom(AGENTS)
       while (second.id === first.id) second = pickRandom(AGENTS)
-      reactions.push({ agentId: second.id, text: pickRandom(AGENT_REACTIONS[second.id]) })
+      steps.push({ agentId: second.id, text: pickRandom(AGENT_REACTIONS[second.id]) })
     }
-    return reactions
+    return steps
   }
 
   function handleInterventionSubmit(messageText, preset) {
@@ -116,22 +124,39 @@ export default function App() {
     setAwaitingIntervention(false)
     appendEvent({ id: `user-${Date.now()}`, kind: 'user', text: message, deltas: preset ? preset.deltas : { chaos: 2 } })
 
-    const reactions = buildReactions(preset)
+    // Presets carry a scripted step sequence (agent lines and/or system
+    // lines); custom messages fall back to a generic persona reaction.
+    const steps = preset ? preset.steps : buildCustomReactionSteps()
     let delay = randInt(500, 900)
 
-    reactions.forEach((reaction, i) => {
+    steps.forEach((step, i) => {
+      const isLast = i === steps.length - 1
+
+      if (step.system) {
+        scheduleTimer(() => {
+          pushSystemEvent(step.system)
+          if (isLast) {
+            scheduleTimer(() => {
+              if (!cancelledRef.current) playNext()
+            }, randInt(700, 1100))
+          }
+        }, delay)
+        delay += randInt(600, 1000)
+        return
+      }
+
       scheduleTimer(() => {
-        setTypingAgentId(reaction.agentId)
+        setTypingAgentId(step.agentId)
         scheduleTimer(() => {
           setTypingAgentId(null)
           appendEvent({
             id: `reaction-${Date.now()}-${i}`,
             kind: 'agent',
-            agentId: reaction.agentId,
-            text: reaction.text,
+            agentId: step.agentId,
+            text: step.text,
             deltas: {},
           })
-          if (i === reactions.length - 1) {
+          if (isLast) {
             scheduleTimer(() => {
               if (!cancelledRef.current) playNext()
             }, randInt(700, 1100))
@@ -189,7 +214,15 @@ export default function App() {
     idxRef.current = idx
 
     if (extra.length) setRevealed((prev) => [...prev, ...extra])
-    setPostmortem(buildPostmortem({ task: current.task, finalStats: stats, participating: current.participating }))
+    setPostmortem(
+      buildPostmortem({
+        task: current.task,
+        finalStats: stats,
+        participating: current.participating,
+        category: current.category,
+        arithmetic: current.arithmetic,
+      })
+    )
     setPhase('done')
   }
 
@@ -216,7 +249,7 @@ export default function App() {
           participating={participating}
           postmortemStatus={postmortem ? postmortem.status : null}
         />
-        <PinnedTask task={incident ? incident.task : null} />
+        <PinnedTask task={incident ? incident.task : null} category={incident ? incident.category : null} />
 
         <div className={`room-main${phase !== 'running' ? ' room-main-full' : ''}`}>
           <ChatFeed
@@ -224,6 +257,7 @@ export default function App() {
             typingAgentId={typingAgentId}
             phase={phase}
             task={incident ? incident.task : task}
+            category={incident ? incident.category : null}
             postmortem={postmortem}
             finalStats={currentStats}
             onReset={handleReset}

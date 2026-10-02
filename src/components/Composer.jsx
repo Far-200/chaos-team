@@ -13,6 +13,7 @@ export default function Composer({ task, onTaskChange, onDeploy }) {
 
   return (
     <div className="composer-area">
+      <div className="composer-label">Suggested incidents</div>
       <div className="composer-presets">
         {TASK_PRESETS.map((p) => (
           <button type="button" key={p} className="preset-chip" onClick={() => onTaskChange(p)}>

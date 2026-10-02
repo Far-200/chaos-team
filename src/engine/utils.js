@@ -8,8 +8,16 @@ export function slugify(text) {
   )
 }
 
-export function fillTemplate(text, task) {
-  return text.replace(/\{task\}/g, task).replace(/\{task_slug\}/g, slugify(task))
+// `extra` supplies additional named placeholders beyond {task}/{task_slug} -
+// currently {expression}/{answer} for math-category content (see
+// engine/parseArithmetic.js). Callers only pass values for placeholders
+// they've already confirmed are safe to use (see needsArithmetic).
+export function fillTemplate(text, task, extra = {}) {
+  let result = text.replace(/\{task\}/g, task).replace(/\{task_slug\}/g, slugify(task))
+  for (const [key, value] of Object.entries(extra)) {
+    result = result.replace(new RegExp(`\\{${key}\\}`, 'g'), value)
+  }
+  return result
 }
 
 export function shuffle(arr) {
@@ -27,4 +35,19 @@ export function randInt(min, max) {
 
 export function pickRandom(arr) {
   return arr[Math.floor(Math.random() * arr.length)]
+}
+
+// Shuffles a pool (which may contain intentional duplicates for weighting)
+// and returns up to `count` *distinct* values - so weighting a pool by
+// repeating entries can't accidentally pick the same line twice.
+export function pickUnique(pool, count) {
+  const seen = new Set()
+  const result = []
+  for (const item of shuffle(pool)) {
+    if (seen.has(item)) continue
+    seen.add(item)
+    result.push(item)
+    if (result.length >= count) break
+  }
+  return result
 }

@@ -15,19 +15,23 @@ export default function RoomHeader({ phase, participating, postmortemStatus }) {
 
   return (
     <header className="room-header">
-      <div className="room-title">
-        <span className="room-hash">#</span>
-        <h1>chaos-team</h1>
+      <div className="room-title-group">
+        <div className="room-title">
+          <span className="room-hash">#</span>
+          <h1>chaos-team</h1>
+        </div>
+        <span className="room-subtitle">Incident response room</span>
       </div>
       <div className="room-meta">
         <div className="avatar-stack">
           {roster.map((a) => (
-            <span key={a.id} className="avatar-chip" style={{ background: a.color }} title={a.name}>
+            <span key={a.id} className="avatar-chip" style={{ borderColor: a.color }} title={a.name}>
               {a.emoji}
             </span>
           ))}
         </div>
         <span className="agent-count">{roster.length} agents</span>
+        <span className="room-meta-divider" />
         <span className={`status-pill ${status.dot}`}>
           <span className="status-dot" />
           {status.label}

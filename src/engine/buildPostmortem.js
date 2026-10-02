@@ -1,23 +1,8 @@
-import { shuffle } from './utils'
+import { fillTemplate, pickRandom, pickUnique } from './utils'
+import { needsArithmetic, formatAnswer } from './parseArithmetic'
+import { ROOT_CAUSES_BY_CATEGORY, UNIVERSAL_ROOT_CAUSES, CLOSINGS_BY_CATEGORY, UNIVERSAL_CLOSINGS } from '../data/postmortemContent'
 
-const ROOT_CAUSE_POOL = (task, agentName) => [
-  `${agentName} interpreted "${task}" as an invitation to redesign the architecture.`,
-  'Nobody asked whether the change actually needed five reviewers.',
-  'A one-line fix was blocked behind a multi-step migration plan.',
-  'Three branches attempted to solve the exact same problem at once.',
-  'The postmortem took longer to write than the original task.',
-  'A feature flag was added to toggle a feature nobody requested.',
-]
-
-const CLOSING_POOL = [
-  'The original task remains, historically, a point of contention.',
-  'A calendar invite has been sent for the retro about this retro.',
-  'No agents were harmed. Several were humbled.',
-  'This has been filed as a "learning" rather than a "failure".',
-  'Leadership has been briefed. Leadership has questions.',
-]
-
-export function buildPostmortem({ task, finalStats, participating }) {
+export function buildPostmortem({ task, finalStats, participating, category, arithmetic }) {
   const { chaos, tests } = finalStats
 
   let status = 'unresolved'
@@ -31,10 +16,19 @@ export function buildPostmortem({ task, finalStats, participating }) {
   }
 
   const completed = status !== 'unresolved'
-  const agentName = participating[Math.floor(Math.random() * participating.length)].name
+  const agentName = pickRandom(participating).name
+  const templateExtra = arithmetic ? { expression: arithmetic.expression, answer: formatAnswer(arithmetic.answer) } : {}
+  const fill = (text) => fillTemplate(text, task, templateExtra).replace(/\{agentName\}/g, agentName)
 
-  const rootCauses = shuffle(ROOT_CAUSE_POOL(task, agentName)).slice(0, 3)
-  const closing = CLOSING_POOL[Math.floor(Math.random() * CLOSING_POOL.length)]
+  const categoryCauses = ROOT_CAUSES_BY_CATEGORY[category] || ROOT_CAUSES_BY_CATEGORY.generic
+  let causePool = [...categoryCauses, ...categoryCauses, ...UNIVERSAL_ROOT_CAUSES]
+  if (!arithmetic) causePool = causePool.filter((c) => !needsArithmetic(c))
+  const rootCauses = pickUnique(causePool, 3).map(fill)
+
+  const categoryClosings = CLOSINGS_BY_CATEGORY[category] || CLOSINGS_BY_CATEGORY.generic
+  let closingPool = [...categoryClosings, ...categoryClosings, ...UNIVERSAL_CLOSINGS]
+  if (!arithmetic) closingPool = closingPool.filter((c) => !needsArithmetic(c))
+  const closing = fill(pickRandom(closingPool))
 
   return { status, statusLabel, completed, rootCauses, closing }
 }

@@ -6,6 +6,15 @@ import PostmortemCard from './PostmortemCard'
 const AGENT_MAP = Object.fromEntries(AGENTS.map((a) => [a.id, a]))
 const USER_PROFILE = { id: 'user', name: 'You', emoji: '🧑‍💻', color: '#f0f6fc' }
 
+// A bare number, "yes", "ship it" etc. should read as a deliberately
+// compact reply, not an undersized version of a normal message bubble -
+// as opposed to a long sentence that merely contains a short `code` span.
+function isCompactText(text) {
+  const stripped = text.replace(/`/g, '').trim()
+  const words = stripped.split(/\s+/).filter(Boolean)
+  return stripped.length <= 14 && words.length <= 2
+}
+
 function formatTime(ts) {
   return new Date(ts).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
 }
@@ -39,7 +48,7 @@ function TypingDots() {
   )
 }
 
-export default function ChatFeed({ events, typingAgentId, phase, task, postmortem, finalStats, onReset }) {
+export default function ChatFeed({ events, typingAgentId, phase, task, category, postmortem, finalStats, onReset }) {
   const scrollRef = useRef(null)
 
   useEffect(() => {
@@ -56,7 +65,7 @@ export default function ChatFeed({ events, typingAgentId, phase, task, postmorte
     <div className="chat-feed" ref={scrollRef}>
       {groups.length === 0 && !typingAgentId && (
         <div className="chat-empty">
-          <p>No incidents yet.</p>
+          <p>$ no active incident</p>
           <p className="chat-empty-sub">Describe a tiny task below and deploy the team.</p>
         </div>
       )}
@@ -66,7 +75,8 @@ export default function ChatFeed({ events, typingAgentId, phase, task, postmorte
           const ev = group.items[0]
           return (
             <div key={ev.id} className="event-system">
-              <span>{ev.text}</span>
+              <span className="event-system-icon">›</span>
+              <MessageText text={ev.text} />
             </div>
           )
         }
@@ -76,7 +86,10 @@ export default function ChatFeed({ events, typingAgentId, phase, task, postmorte
           return (
             <div key={ev.id} className="event-climax">
               <span className="climax-icon">🚨</span>
-              <span>{ev.text}</span>
+              <div>
+                <span className="climax-kicker">Critical</span>
+                <MessageText text={ev.text} />
+              </div>
             </div>
           )
         }
@@ -87,7 +100,7 @@ export default function ChatFeed({ events, typingAgentId, phase, task, postmorte
 
         return (
           <div key={group.items[0].id} className={`message-row${isSelf ? ' message-row-self' : ''}`}>
-            <span className="msg-avatar" style={{ background: profile.color }}>
+            <span className="msg-avatar" style={isSelf ? undefined : { borderColor: profile.color }}>
               {profile.emoji}
             </span>
             <div className="message-col">
@@ -97,15 +110,18 @@ export default function ChatFeed({ events, typingAgentId, phase, task, postmorte
                 </span>
                 <span className="msg-time">{formatTime(group.items[0].revealedAt)}</span>
               </div>
-              {group.items.map((ev) => (
-                <div
-                  key={ev.id}
-                  className={`bubble${isSelf ? ' bubble-self' : ''}`}
-                  style={isSelf ? undefined : { borderLeftColor: profile.color }}
-                >
-                  <MessageText text={ev.text} />
-                </div>
-              ))}
+              {group.items.map((ev) => {
+                const isCompact = isCompactText(ev.text)
+                return (
+                  <div
+                    key={ev.id}
+                    className={`bubble${isSelf ? ' bubble-self' : ''}${isCompact ? ' bubble-compact' : ''}`}
+                    style={isSelf ? undefined : { borderLeftColor: profile.color }}
+                  >
+                    <MessageText text={ev.text} />
+                  </div>
+                )
+              })}
               {showTypingHere && (
                 <div className="bubble bubble-typing" style={{ borderLeftColor: profile.color }}>
                   <TypingDots />
@@ -118,7 +134,7 @@ export default function ChatFeed({ events, typingAgentId, phase, task, postmorte
 
       {typingAgentId && !typingJoinsLastGroup && (
         <div className="message-row">
-          <span className="msg-avatar" style={{ background: AGENT_MAP[typingAgentId].color }}>
+          <span className="msg-avatar" style={{ borderColor: AGENT_MAP[typingAgentId].color }}>
             {AGENT_MAP[typingAgentId].emoji}
           </span>
           <div className="message-col">
@@ -135,7 +151,7 @@ export default function ChatFeed({ events, typingAgentId, phase, task, postmorte
       )}
 
       {phase === 'done' && postmortem && (
-        <PostmortemCard task={task} postmortem={postmortem} finalStats={finalStats} onReset={onReset} />
+        <PostmortemCard task={task} category={category} postmortem={postmortem} finalStats={finalStats} onReset={onReset} />
       )}
     </div>
   )
