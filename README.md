@@ -1,16 +1,17 @@
-# React + Vite
+# Chaos
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Chaos is a deterministic browser-only simulation of five AI coding-assistant characters reacting to a limited set of supported coding tasks: Claude, Codex, Copilot, ChatGPT, and Gemini.
 
-Currently, two official plugins are available:
+No live AI APIs, backend, or autonomous agents. Inputs select locally defined dialogue through the existing keyword categories; unmatched text retains the generic scripted fallback. Free-typed interventions receive predefined acknowledgements, not generated answers.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Each run seeds Mulberry32 using an FNV-1a hash of the classifier category (plus normalized operands/operator for parsed arithmetic). Equivalent category inputs select the same incident variants, while their original wording remains in task placeholders. Postmortems and custom reactions use separate derived seeds. Resetting starts fresh; identical tasks and intervention choices reproduce the same incident and postmortem. Different user choices still apply their existing stat changes. Chat timestamps are display-only; ?Surprise me? randomly chooses an input before deployment.
 
-## React Compiler
+```sh
+npm install
+npm run dev
+npm test
+npm run lint
+npm run build
+```
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+Browser regression check: with the dev server running and Playwright available, run `node scripts/verify-browser.mjs`. If Playwright is installed outside this project, set `PLAYWRIGHT_MODULE` to its `index.mjs` path. This uses Chromium with a controlled clock for full playback, reset/replay, interventions, abort, skip, generic input, and mobile checks; screenshots go to `dist/verification/`.

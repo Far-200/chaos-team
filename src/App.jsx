@@ -8,9 +8,7 @@ import InterventionBar from './components/InterventionBar'
 import { buildIncident } from './engine/buildIncident'
 import { buildPostmortem } from './engine/buildPostmortem'
 import { INITIAL_STATS, mergeDeltas } from './engine/stats'
-import { AGENT_REACTIONS } from './data/userReplies'
-import { AGENTS } from './data/agents'
-import { randInt, pickRandom } from './engine/utils'
+import { buildCustomReactionSteps } from './engine/buildReactions'
 import './App.css'
 
 export default function App() {
@@ -25,6 +23,7 @@ export default function App() {
   const incidentRef = useRef(null)
   incidentRef.current = incident
 
+  const eventIdRef = useRef(0)
   const idxRef = useRef(0)
   const statsRef = useRef(INITIAL_STATS)
   const cancelledRef = useRef(false)
@@ -52,7 +51,7 @@ export default function App() {
   }
 
   function pushSystemEvent(text) {
-    appendEvent({ id: `sys-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, kind: 'system', text, deltas: {} })
+    appendEvent({ id: `sys-${eventIdRef.current++}`, kind: 'system', text, deltas: {} })
   }
 
   function finishIncident() {
@@ -104,30 +103,17 @@ export default function App() {
     }, isAgent ? ev.typingMs : 0)
   }
 
-  // Custom (non-preset) messages get 1, occasionally 2, generic persona
-  // acknowledgements - no semantic processing, just flavor.
-  function buildCustomReactionSteps() {
-    const first = pickRandom(AGENTS)
-    const steps = [{ agentId: first.id, text: pickRandom(AGENT_REACTIONS[first.id]) }]
-    if (Math.random() < 0.3) {
-      let second = pickRandom(AGENTS)
-      while (second.id === first.id) second = pickRandom(AGENTS)
-      steps.push({ agentId: second.id, text: pickRandom(AGENT_REACTIONS[second.id]) })
-    }
-    return steps
-  }
-
   function handleInterventionSubmit(messageText, preset) {
     const message = messageText.trim()
     if (!message) return
 
     setAwaitingIntervention(false)
-    appendEvent({ id: `user-${Date.now()}`, kind: 'user', text: message, deltas: preset ? preset.deltas : { chaos: 2 } })
+    appendEvent({ id: `user-${eventIdRef.current++}`, kind: 'user', text: message, deltas: preset ? preset.deltas : { chaos: 2 } })
 
     // Presets carry a scripted step sequence (agent lines and/or system
     // lines); custom messages fall back to a generic persona reaction.
-    const steps = preset ? preset.steps : buildCustomReactionSteps()
-    let delay = randInt(500, 900)
+    const steps = preset ? preset.steps : buildCustomReactionSteps(incidentRef.current.seed, idxRef.current)
+    let delay = 700
 
     steps.forEach((step, i) => {
       const isLast = i === steps.length - 1
@@ -138,10 +124,10 @@ export default function App() {
           if (isLast) {
             scheduleTimer(() => {
               if (!cancelledRef.current) playNext()
-            }, randInt(700, 1100))
+            }, 900)
           }
         }, delay)
-        delay += randInt(600, 1000)
+        delay += 800
         return
       }
 
@@ -150,7 +136,7 @@ export default function App() {
         scheduleTimer(() => {
           setTypingAgentId(null)
           appendEvent({
-            id: `reaction-${Date.now()}-${i}`,
+            id: `reaction-${eventIdRef.current++}`,
             kind: 'agent',
             agentId: step.agentId,
             text: step.text,
@@ -159,16 +145,17 @@ export default function App() {
           if (isLast) {
             scheduleTimer(() => {
               if (!cancelledRef.current) playNext()
-            }, randInt(700, 1100))
+            }, 900)
           }
-        }, randInt(450, 750))
+        }, 600)
       }, delay)
-      delay += randInt(1000, 1500)
+      delay += 1250
     })
   }
 
   function handleDeploy() {
     const built = buildIncident(task.trim())
+    eventIdRef.current = 0
     idxRef.current = 0
     statsRef.current = INITIAL_STATS
     handledInterventionsRef.current = new Set()

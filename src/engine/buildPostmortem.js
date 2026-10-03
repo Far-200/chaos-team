@@ -1,8 +1,11 @@
-import { fillTemplate, pickRandom, pickUnique } from './utils'
-import { needsArithmetic, formatAnswer } from './parseArithmetic'
-import { ROOT_CAUSES_BY_CATEGORY, UNIVERSAL_ROOT_CAUSES, CLOSINGS_BY_CATEGORY, UNIVERSAL_CLOSINGS } from '../data/postmortemContent'
+import { createRandom, createSeed } from './seededRandom.js'
+import { taskIdentity } from './taskIdentity.js'
+import { fillTemplate } from './utils.js'
+import { needsArithmetic, formatAnswer } from './parseArithmetic.js'
+import { ROOT_CAUSES_BY_CATEGORY, UNIVERSAL_ROOT_CAUSES, CLOSINGS_BY_CATEGORY, UNIVERSAL_CLOSINGS } from '../data/postmortemContent.js'
 
 export function buildPostmortem({ task, finalStats, participating, category, arithmetic }) {
+  const { pickRandom, pickUnique } = createRandom(createSeed(`${taskIdentity(category, arithmetic)}:postmortem`))
   const { chaos, tests } = finalStats
 
   let status = 'unresolved'

@@ -20,30 +20,30 @@ export function fillTemplate(text, task, extra = {}) {
   return result
 }
 
-export function shuffle(arr) {
+export function shuffle(arr, rng) {
   const copy = [...arr]
   for (let i = copy.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
+    const j = Math.floor(rng() * (i + 1))
     ;[copy[i], copy[j]] = [copy[j], copy[i]]
   }
   return copy
 }
 
-export function randInt(min, max) {
-  return min + Math.floor(Math.random() * (max - min + 1))
+export function randInt(min, max, rng) {
+  return min + Math.floor(rng() * (max - min + 1))
 }
 
-export function pickRandom(arr) {
-  return arr[Math.floor(Math.random() * arr.length)]
+export function pickRandom(arr, rng) {
+  return arr[Math.floor(rng() * arr.length)]
 }
 
 // Shuffles a pool (which may contain intentional duplicates for weighting)
 // and returns up to `count` *distinct* values - so weighting a pool by
 // repeating entries can't accidentally pick the same line twice.
-export function pickUnique(pool, count) {
+export function pickUnique(pool, count, rng) {
   const seen = new Set()
   const result = []
-  for (const item of shuffle(pool)) {
+  for (const item of shuffle(pool, rng)) {
     if (seen.has(item)) continue
     seen.add(item)
     result.push(item)

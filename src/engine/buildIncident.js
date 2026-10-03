@@ -1,11 +1,13 @@
-import { AGENTS } from '../data/agents'
-import { CLIMAX_BY_CATEGORY } from '../data/climax'
-import { SYSTEM_BEATS, AMBIENT_SYSTEM_BY_CATEGORY } from '../data/systemEvents'
-import { BANTER_EXCHANGES } from '../data/banter'
-import { RARE_EVENTS } from '../data/rareEvents'
-import { classifyTask } from './classifyTask'
-import { parseSimpleArithmetic, formatAnswer, needsArithmetic } from './parseArithmetic'
-import { fillTemplate, shuffle, randInt, pickRandom } from './utils'
+import { AGENTS } from '../data/agents.js'
+import { CLIMAX_BY_CATEGORY } from '../data/climax.js'
+import { SYSTEM_BEATS, AMBIENT_SYSTEM_BY_CATEGORY } from '../data/systemEvents.js'
+import { BANTER_EXCHANGES } from '../data/banter.js'
+import { RARE_EVENTS } from '../data/rareEvents.js'
+import { classifyTask } from './classifyTask.js'
+import { parseSimpleArithmetic, formatAnswer, needsArithmetic } from './parseArithmetic.js'
+import { fillTemplate } from './utils.js'
+import { createRandom, createSeed } from './seededRandom.js'
+import { taskIdentity } from './taskIdentity.js'
 
 // Pacing bounds (ms). Typing and reading are deliberately separate so a
 // message's arrival and the pause to actually read it don't blur together.
@@ -20,7 +22,7 @@ const BANTER_READ_MS = [400, 900]
 const AMBIENT_READ_MS = [800, 1300]
 
 // Builds the full, pre-scripted sequence of feed events for a task.
-// Everything is randomized locally up front - playback just reveals events
+// Everything is selected deterministically up front - playback just reveals events
 // one by one and folds each event's `deltas` onto a running stats total.
 export function buildIncident(task) {
   const category = classifyTask(task)
@@ -30,15 +32,19 @@ export function buildIncident(task) {
   // null means "couldn't parse it" or "division/modulo by zero" - either
   // way, content needing {expression}/{answer} is filtered out below.
   const arithmetic = category === 'math' ? parseSimpleArithmetic(task) : null
+  const canonicalTaskKey = taskIdentity(category, arithmetic)
+  const seed = createSeed(canonicalTaskKey)
+  const random = createRandom(seed)
+  const { rng, shuffle, randInt, pickRandom } = random
   const templateExtra = arithmetic ? { expression: arithmetic.expression, answer: formatAnswer(arithmetic.answer) } : {}
   const fill = (text) => fillTemplate(text, task, templateExtra)
 
   // Gemini is the "optional" fifth teammate - shows up most of the time, not always.
-  const participating = AGENTS.filter((a) => a.id !== 'gemini' || Math.random() < 0.7)
+  const participating = AGENTS.filter((a) => a.id !== 'gemini' || rng() < 0.7)
 
-  const stepCount = 14 + Math.floor(Math.random() * 7) // 14-20 beats
+  const stepCount = 14 + Math.floor(rng() * 7) // 14-20 beats
   const climaxIndex = Math.floor(stepCount * 0.75)
-  const extrasSchedule = pickExtrasSchedule(stepCount, climaxIndex)
+  const extrasSchedule = pickExtrasSchedule(stepCount, climaxIndex, random)
 
   const events = []
   let idCounter = 0
@@ -51,7 +57,7 @@ export function buildIncident(task) {
 
   const queues = {}
   participating.forEach((a) => {
-    queues[a.id] = shuffle(buildAgentPool(a, category, Boolean(arithmetic)))
+    queues[a.id] = shuffle(buildAgentPool(a, category, Boolean(arithmetic), random))
   })
 
   for (let i = 0; i < stepCount; i++) {
@@ -69,7 +75,7 @@ export function buildIncident(task) {
     const agent = pickRandom(participating)
     let queue = queues[agent.id]
     if (queue.length === 0) {
-      queue = shuffle(buildAgentPool(agent, category, Boolean(arithmetic)))
+      queue = shuffle(buildAgentPool(agent, category, Boolean(arithmetic), random))
     }
     let beat = queue.pop()
     let filledText = fill(beat.text)
@@ -137,11 +143,13 @@ export function buildIncident(task) {
 
   return {
     task,
+    canonicalTaskKey,
+    seed,
     category,
     arithmetic,
     participating,
     events,
-    interventionPoints: pickInterventionPoints(events),
+    interventionPoints: pickInterventionPoints(events, random),
   }
 }
 
@@ -151,7 +159,7 @@ export function buildIncident(task) {
 // conversation stays mostly on-topic while still mixing in some
 // persona-flavored universal variety. Beats needing {expression}/{answer}
 // are dropped when no arithmetic result is available.
-function buildAgentPool(agent, category, arithmeticAvailable) {
+function buildAgentPool(agent, category, arithmeticAvailable, { rng, shuffle }) {
   let categoryBeats = agent.categoryBeats[category] || agent.categoryBeats.generic || []
   if (!arithmeticAvailable) categoryBeats = categoryBeats.filter((b) => !needsArithmetic(b.text))
   categoryBeats = shuffle(categoryBeats)
@@ -162,7 +170,7 @@ function buildAgentPool(agent, category, arithmeticAvailable) {
   let ci = 0
   let ui = 0
   while (ci < categoryBeats.length || ui < universalBeats.length) {
-    const drawCategory = ci < categoryBeats.length && (ui >= universalBeats.length || Math.random() < 0.7)
+    const drawCategory = ci < categoryBeats.length && (ui >= universalBeats.length || rng() < 0.7)
     merged.push(drawCategory ? categoryBeats[ci++] : universalBeats[ui++])
   }
   return merged
@@ -171,19 +179,19 @@ function buildAgentPool(agent, category, arithmeticAvailable) {
 // Decides which (non-climax) iterations get an extra flavor insertion -
 // banter, a rare event, or an ambient system line - and how many. Most
 // incidents get 0-2; it's deliberately uncommon to feel organic.
-function pickExtrasSchedule(stepCount, climaxIndex) {
+function pickExtrasSchedule(stepCount, climaxIndex, { rng, shuffle }) {
   const eligible = []
   for (let i = 0; i < stepCount; i++) {
     if (i !== climaxIndex) eligible.push(i)
   }
 
-  const roll = Math.random()
+  const roll = rng()
   const count = roll < 0.3 ? 0 : roll < 0.75 ? 1 : roll < 0.95 ? 2 : 3
 
   const chosen = shuffle(eligible).slice(0, Math.min(count, eligible.length))
   const schedule = {}
   chosen.forEach((i) => {
-    const r = Math.random()
+    const r = rng()
     schedule[i] = r < 0.45 ? 'banter' : r < 0.75 ? 'rare' : 'ambient'
   })
   return schedule
@@ -192,7 +200,7 @@ function pickExtrasSchedule(stepCount, climaxIndex) {
 // Picks 2-3 points (always on an agent beat) spread across the timeline -
 // roughly one from the early third, one from the middle, one from the late
 // third - so the user gets pulled into the chat at sensible moments.
-function pickInterventionPoints(events) {
+function pickInterventionPoints(events, { rng, shuffle }) {
   const agentIndices = events.reduce((acc, ev, i) => {
     if (ev.kind === 'agent') acc.push(i)
     return acc
@@ -207,9 +215,9 @@ function pickInterventionPoints(events) {
     agentIndices.slice(third * 2),
   ].filter((b) => b.length > 0)
 
-  const count = Math.min(buckets.length, 2 + Math.floor(Math.random() * 2)) // 2-3
+  const count = Math.min(buckets.length, 2 + Math.floor(rng() * 2)) // 2-3
   return shuffle(buckets)
     .slice(0, count)
-    .map((bucket) => bucket[Math.floor(Math.random() * bucket.length)])
+    .map((bucket) => bucket[Math.floor(rng() * bucket.length)])
     .sort((a, b) => a - b)
 }
